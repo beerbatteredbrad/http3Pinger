@@ -1,5 +1,19 @@
 # This script tests HTTP/3 connectivity using .NET.
 # It attempts to detect HTTP/3 support by examining response headers.
+#
+# Author: beerbatteredbrad
+# Version: 1.0
+# Created: May 2025
+# 
+# HTTP/3 is the next generation of the HTTP protocol, built on the QUIC transport protocol.
+# It offers improved performance through features like:
+# - Reduced connection setup time (0-RTT)
+# - Improved congestion control
+# - Connection migration
+# - Multiplexing without head-of-line blocking
+#
+# This script helps identify if a server supports HTTP/3 by checking for the Alt-Svc header
+# which indicates HTTP/3 (h3) availability.
 
 param (
     [Parameter(Mandatory=$true)]
@@ -15,10 +29,12 @@ if (-not $Url.StartsWith("http://") -and -not $Url.StartsWith("https://")) {
     Write-Host "Adding https:// prefix to URL: $Url" -ForegroundColor Yellow
 }
 
-# Generate a unique class name with timestamp to avoid caching issues
-$className = "Http3Tester_" + (Get-Date).ToString("yyyyMMddHHmmss")
+# Generate a unique and descriptive class name with timestamp to prevent caching issues
+# This ensures each execution of the script uses a fresh class, avoiding type conflicts
+$dynamicClassName = "Http3ConnectivityTester_" + (Get-Date).ToString("yyyyMMddHHmmss")
 
 # Inline C# code to test HTTP/3 connectivity
+# This code is compiled at runtime to provide HTTP/3 detection capabilities
 $CSharpCode = @"
 using System;
 using System.Net;
@@ -30,8 +46,16 @@ using System.Diagnostics;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 
-public class $className
+public class $dynamicClassName
 {
+    /**
+     * Tests HTTP/3 connectivity for a given URL by examining HTTP headers.
+     * Specifically looks for Alt-Svc headers that indicate HTTP/3 support.
+     * 
+     * @param url     The URL to test for HTTP/3 support
+     * @param verbose Whether to collect additional details (certificates, response content samples)
+     * @return        TestResult object containing all connectivity information
+     */
     public static async Task<TestResult> TestHttp3Connectivity(string url, bool verbose)
     {
         var result = new TestResult();
@@ -170,6 +194,14 @@ public class $className
         result.TestEndTime = DateTime.Now;
         return result;
     }
+      /**
+     * Extracts and formats certificate information from the SSL certificate chain
+     * 
+     * @param certificate    The X509Certificate2 from the SSL handshake
+     * @param chain          The certificate chain (if available)
+     * @param sslPolicyErrors Any SSL policy errors encountered
+     * @return               Formatted string with certificate details
+     */
       private static string GetCertificateInfo(X509Certificate2 certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
     {
         if (certificate == null)
@@ -197,6 +229,13 @@ public class $className
         return info.ToString();
     }
     
+    /**
+     * Extracts specific interesting headers from the response and stores them
+     * in the TestResult object for easier access and display
+     * 
+     * @param result   The TestResult object to populate with header values
+     * @param headers  The dictionary of headers from the HTTP response
+     */
     private static void ExtractInterestingHeaders(TestResult result, Dictionary<string, string> headers)
     {
         if (headers.ContainsKey("Server"))
@@ -220,10 +259,9 @@ public class $className
         if (headers.ContainsKey("Access-Control-Allow-Origin"))
             result.CorsAllowOrigin = headers["Access-Control-Allow-Origin"];
     }
-    
-    public class TestResult
+      public class TestResult
     {
-        // Basic information
+        // Basic information about the target and connection
         public string TargetUrl { get; set; }
         public string HostName { get; set; }
         public bool IsHttps { get; set; }
@@ -232,18 +270,18 @@ public class $className
         public DateTime TestEndTime { get; set; }
         public long ResponseTimeMs { get; set; }
         
-        // Connection results
+        // Connection results and HTTP protocol information
         public bool IsSuccess { get; set; }
         public bool IsHttp3Supported { get; set; }
         public string ProtocolVersion { get; set; }
         public int StatusCode { get; set; }
         public string ReasonPhrase { get; set; }
         
-        // Headers
+        // Raw header information
         public string Headers { get; set; }
         public Dictionary<string, string> HeadersDict { get; set; }
         
-        // Specific interesting headers
+        // Specific important HTTP headers extracted for easier access
         public string ServerHeader { get; set; }
         public string PoweredByHeader { get; set; }
         public string ContentTypeOptions { get; set; }
@@ -252,15 +290,15 @@ public class $className
         public string AltSvcHeaderValue { get; set; }
         public string CorsAllowOrigin { get; set; }
         
-        // Content information
+        // Content metadata and sample
         public long ContentLength { get; set; }
         public string ContentType { get; set; }
         public string ContentSample { get; set; }
         
-        // SSL/TLS information
+        // SSL/TLS certificate information
         public string CertificateInfo { get; set; }
         
-        // Error information
+        // Error handling and diagnostic information
         public string ErrorMessage { get; set; }
         public string ErrorType { get; set; }
         public string ErrorStackTrace { get; set; }
@@ -272,16 +310,16 @@ public class $className
 
 # Compile the C# code
 Add-Type -TypeDefinition $CSharpCode -Language CSharp -ReferencedAssemblies @(
-    "System.Net.Http.dll", 
-    "System.dll", 
-    "System.Core.dll",
-    "System.Security.dll"
+    "System.Net.Http.dll",  # For HTTP client functionality
+    "System.dll",           # Core .NET classes
+    "System.Core.dll",      # LINQ and other extensions
+    "System.Security.dll"   # For certificate handling
 )
 
 # Call the TestHttp3Connectivity method
 try {
     # Access the dynamic class by its generated name
-    $dynamicType = [Type]"$className"
+    $dynamicType = [Type]"$dynamicClassName"
     $Result = $dynamicType::TestHttp3Connectivity($Url, $ShowDetails).GetAwaiter().GetResult()
 
     Write-Host "HTTP Protocol Test Results for $Url" -ForegroundColor Cyan
