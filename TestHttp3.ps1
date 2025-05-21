@@ -45,6 +45,17 @@ public class $className
             result.IsHttps = uri.Scheme.ToLower() == "https";
             result.Port = uri.Port;
             
+            // DNS resolution
+            try 
+            {
+                IPAddress[] addresses = Dns.GetHostAddresses(uri.Host);
+                result.IpAddresses = addresses.Select(a => a.ToString()).ToArray();
+            }
+            catch (Exception dnsEx)
+            {
+                result.DnsError = string.Format("DNS resolution failed: {0}", dnsEx.Message);
+            }
+            
             // Use HttpClientHandler for more control
             var handler = new HttpClientHandler
             {
@@ -253,6 +264,8 @@ public class $className
         public string ErrorMessage { get; set; }
         public string ErrorType { get; set; }
         public string ErrorStackTrace { get; set; }
+        public string[] IpAddresses { get; set; }
+        public string DnsError { get; set; }
     }
 }
 "@
@@ -287,6 +300,14 @@ try {
         Write-Host "Target: $($Result.TargetUrl) ($($Result.HostName):$($Result.Port))" -ForegroundColor Yellow
         Write-Host "Test Time: $($Result.TestStartTime)" -ForegroundColor Yellow
         Write-Host "Response Time: $($Result.ResponseTimeMs) ms" -ForegroundColor Yellow
+        
+        # IP Address info
+        if ($Result.IpAddresses -and $Result.IpAddresses.Count -gt 0) {
+            Write-Host "IP Addresses: $($Result.IpAddresses -join ', ')" -ForegroundColor Yellow
+        }
+        elseif ($Result.DnsError) {
+            Write-Host "DNS Resolution: $($Result.DnsError)" -ForegroundColor Red
+        }
         
         # Connection info
         Write-Host "Protocol: $($Result.ProtocolVersion)" -ForegroundColor Yellow
